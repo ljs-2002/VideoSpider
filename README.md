@@ -102,7 +102,7 @@ tqdm==4.65.0
 | `-e`              | 指定是否要生成excel文件，若要生成则会在输出目录下生成`output.xlsx`文件 |                                                        |
 | `-o`/`--output`   | 指定输出`.csv`文件的名字，要求带后缀，默认为`output.csv`     |                                                        |
 | `-d`/`--dir`      | 指定输出目录，默认为`./output`                               |                                                        |
-| `-s/--search`     | 指定根据关键词搜索并选取前10个视频                           | 支持搜索w的eb id有**haokan**、**thepaper**和**cctv**。 |
+| `-s/--search`     | 指定根据关键词搜索并选取前10个视频                           | 支持搜索的web id有**haokan**、**thepaper**和**cctv**。 |
 | `--multi_process` | 多进程爬取                                                   | 将会开启4个进程进行爬取                                |
 
 ### WebGUI
