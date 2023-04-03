@@ -31,7 +31,7 @@
         VideoList.json
 ```
 
-- `main.py`为入口程序，`req.py`为爬虫主程序，`Web.py`为网站类，设置获取网站URL、动态内容等的方法，`gui.py`为Web GUI
+- `main.py`为入口程序，`Spider.py`为爬虫主程序，`WebClass.py`为网站类，设置获取网站URL、动态内容等的方法，`gui.py`为Web GUI
 - `assets`文件夹中的文件用于Web GUI的图标显示及README的图片显示
 - `config.json`为针对各类网站的基本设置，`VideoList.json`为默认的带爬取视频配置文件
 
