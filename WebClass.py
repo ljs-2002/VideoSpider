@@ -347,11 +347,11 @@ def get_search_cctv_list(**kwarg):
     re_bds_search_page = '//media.app.cctv.com/vapi/video/vplist.do\?.*?chid=([A-Za-z0-9]*?)&title='
     pattern_search_page = re.compile(re_bds_search_page,re.S)
     chid = pattern_search_page.findall(search_page_html)[0]
-    search_url = 'https://media.app.cctv.com/vapi/video/vplist.do?chid='+chid+'&title='+keyword_quote+'&p=1&n=12'
+    search_url = 'https://media.app.cctv.com/vapi/video/vplist.do?chid='+chid+'&title='+keyword_quote+'&p=1&n=20'
     search_req = requests.get(url=search_url,headers=headers)
     search_json = search_req.json()
     data_list = search_json['data']
-    re_bds_data = 'VIDE(.*?)\.shtml'
+    re_bds_data = 'VIDE([a-zA-Z0-9]*?)\.shtml'
     pattern_data = re.compile(re_bds_data,re.S)
     video_id_list = pattern_data.findall(str(data_list))
     return video_id_list

@@ -383,27 +383,27 @@ class VideoSpider(object):
             video_list = self.get_video_list()
         else:
             video_list = self.video_list
-        print("task amount: ",len(video_list))
+        print("task amount: ",len(video_list),flush=True)
         
         # 多进程
         if self.multi_process:
-            print("\033[32mfreeze_support...")
+            print("\033[32mfreeze_support...",flush=True)
             freeze_support()
-            print("create share Queue...")
+            print("create share Queue...",flush=True)
             self.task_Queue = Manager().Queue(len(video_list))
-            print("create share list...")
+            print("create share list...",flush=True)
             self.fail_list = Manager().list()
-            print("create share csv_lock...")
+            print("create share csv_lock...",flush=True)
             self.csv_lock = Manager().Lock()
-            print("create share fail_list lock...\033[0m")
+            print("create share fail_list lock...\033[0m",flush=True)
             self.fail_list_lock = Manager().Lock()
-            print("insert queue...")
+            print("insert queue...",flush=True)
             for task in video_list:
                 self.task_Queue.put(task)
             
             result_list = []
             
-            print("start multi process...")
+            print("start multi process...",flush=True)
 
             p = Pool(4)
             time_start = time()
@@ -416,7 +416,7 @@ class VideoSpider(object):
             for ret in result_list:
                 ret.get()
             time_end = time()
-            print("\033[32mtime usage: ",time_end-time_start,"\033[0m")
+            print("\033[32mMulti_process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
             if len(self.fail_list)> 0:
                 fail_list = list(self.fail_list)
         # 单进程
@@ -426,7 +426,7 @@ class VideoSpider(object):
                 self.launch(video)
                 #sleep(uniform(0.5, 1))
             time_end = time()
-            print("\033[32mtime usage: ",time_end-time_start,"\033[0m")
+            print("\033[32mSingle Process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
 
         # 显示和保存失败列表
         if len(fail_list)> 0:

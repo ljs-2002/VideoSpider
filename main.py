@@ -3,7 +3,7 @@ from GUI import demo,spider
 from getopt import getopt,GetoptError
 
 if __name__ == '__main__':
-    print("start task")
+    print("start task",flush=True)
     argv = sys.argv[1:]
     task_file = './config/VideoList.json'
     output_file = 'output.csv'
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     port = int(12345)
     
     # 读取命令行参数
-    print('prase argv...')
+    print('prase argv...',flush=True)
     if len(argv) > 0:
         try:
             opts, args = getopt(argv,"t:c:o:d:s:p:emg",["task=","config=","output=","dir=","search=","multi_process","gui","port="])

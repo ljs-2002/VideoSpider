@@ -104,7 +104,7 @@ def start():
     
     if len(task_spider) > 0:
         stdout.flush()
-        print('===================== task start =========================')
+        print('===================== task start =========================',flush=True)
         stdout.flush()
         spider.run(video_list=task_spider,
                 output_file=output_file_name,
@@ -117,7 +117,7 @@ def start():
         task_chatbot.append([None,None])
         task_spider.clear()
         stdout.flush()
-        print('===================== task end =========================')
+        print('===================== task end =========================',flush=True)
         stdout.flush()
         return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot
     else:
