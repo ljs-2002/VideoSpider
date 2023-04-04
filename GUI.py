@@ -6,7 +6,7 @@ from sys import stdout
 task_list=[""]
 task_chatbot = [[None,None]]
 task_spider = []
-search_choice = ['haokan','thepaper','cctv']
+search_choice = ['v','haokan','thepaper','ifeng','tudou','cctv']
 choice = ['v','haokan','ku6','ifeng','thepaper','tudou','cctv']
 
 output_file_name = "output.csv"

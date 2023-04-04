@@ -320,7 +320,7 @@ class VideoSpider(object):
                         else:
                             fail_list.append(video)
                             print('previous fail list length:',len(fail_list))
-                        
+                            success = False
                     continue
                 success = True
                 break
@@ -332,7 +332,7 @@ class VideoSpider(object):
                 self.task_Queue.task_done()
             if not self.multi_process or self.task_Queue.empty():
                 break
-
+            sleep(uniform(0, 0.5))
         return success
 
     def run(self,task_file:str ='./config/VideoList.json',
@@ -359,8 +359,7 @@ class VideoSpider(object):
 
         print('check path...')
         self.output_path = path.join(self.output_dir, self.output_file)
-        path.exists(self.output_dir) and rmtree(self.output_dir)
-        makedirs(self.output_dir)
+        path.exists(self.output_dir) or makedirs(self.output_dir)
         # 创建储存视频的文件夹
         
         path.exists('./file') or makedirs('./file')
@@ -379,7 +378,7 @@ class VideoSpider(object):
         if self.search_mod:
             self.search_by_keyword(self.search_keywords)
         
-        if not self.gui_mod:
+        if not self.gui_mod :
             video_list = self.get_video_list()
         else:
             video_list = self.video_list

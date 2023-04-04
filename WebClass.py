@@ -68,7 +68,24 @@ class WebSiteInfo():
             return self.default_get_like(**kwarg)
         else:
             return 'None'
-        
+
+@retry(max_retries=3, sleep_duration=1)
+def search_by_google(keyword,site,re_bds):
+    id_list = []
+    i=0
+    while len(id_list)<10:
+        search_url = 'https://www.google.com/search?q='+'intitle:'+keyword+'+'+parse.quote('site:'+site)+'&start='+str(i)
+        ua = UA()
+        headers = {'User-Agent': ua.random}
+        req = requests.get(url=search_url, headers=headers)
+        html = req.content.decode('utf-8')
+        pattern = re.compile(re_bds,re.S)
+        id_list.extend(list(set(pattern.findall(html))))
+        i+=10
+        if i>50:
+            break
+    return id_list
+
 def load_config():
     with open("./config/config.json", "r", encoding='utf-8') as f:
         config_dict = load(f)
@@ -89,6 +106,26 @@ def get_file_v_url(**kwarg):
     url_list = pattern.findall(html)
     url = 'https://pgcvideo-cdn.xiaodutv.com/'+url_list[0]
     return url
+
+
+def get_search_v_list(**kwarg):
+    keyword = parse.quote(kwarg["keyword"])
+    re_bds = '//baishi\.xiaodutv\.com/watch/([0-9]*?)\.html'
+    id_list = search_by_google(keyword,'baishi.xiaodutv.com/watch',re_bds)
+    # id_list = []
+    # i=0
+    # while len(id_list)<10:
+    #     search_url = 'https://www.google.com/search?q='+parse.quote('intitle:'+keyword)+'+'+parse.quote('+site:baishi.xiaodutv.com/watch')+'&start='+str(i)
+    #     ua = UA()
+    #     headers = {'User-Agent': ua.random}
+    #     req = requests.get(url=search_url, headers=headers)
+    #     html = req.content.decode('utf-8')
+    #     re_bds = '//baishi\.xiaodutv\.com/watch/([0-9]*?)\.html'
+    #     pattern = re.compile(re_bds,re.S)
+    #     id_list.extend(list(set(pattern.findall(html))))
+    #     i+=10
+    return id_list
+
 
 def get_params_haokan(**kwarg):
     id = kwarg['id']
@@ -156,6 +193,10 @@ def get_file_ku6_url(**kwarg):
     url = url_list[0]
     return url
 
+def get_search_ku6_list(**kwarg):
+    keyword = kwarg["keyword"]
+
+
 def get_url_ifeng(**kwarg):
     id = kwarg['id']
     url = kwarg['url']
@@ -164,9 +205,11 @@ def get_url_ifeng(**kwarg):
 
 def get_like_ifeng_url(**kwarg):
     html = kwarg['html']
-    id = kwarg['video_id']
+    re_bds_real_id = 'og:url" content="https://v.ifeng.com/c/([0-9a-zA-Z]*?)">'
+    pattern = re.compile(re_bds_real_id,re.S)
+    real_id = pattern.findall(html)[0]
     url = 'https://survey.news.ifeng.com/api/getaccumulatorweight?key='
-    re_bds = '(?="base62Id.*?)"base62Id":"'+str(id)+'","guid":"(.*?)"'
+    re_bds = '(?="base62Id.*?)"base62Id":"'+str(real_id)+'","guid":"(.*?)"'
     pattern = re.compile(re_bds,re.S)
     key = pattern.findall(html)[0]
     url = url + key + 'ding&format=js&serviceid=1&callback=getVideoZan_0'
@@ -174,9 +217,11 @@ def get_like_ifeng_url(**kwarg):
 
 def get_view_ifeng_url(**kwarg):
     html = kwarg['html']
-    id = kwarg['video_id']
+    re_bds_real_id = 'og:url" content="https://v.ifeng.com/c/([0-9a-zA-Z]*?)">'
+    pattern = re.compile(re_bds_real_id,re.S)
+    real_id = pattern.findall(html)[0]
     url = ' https://survey.news.ifeng.com/api/getaccumulatorweight?key[]='
-    re_bds = '"base62Id":"'+str(id)+'","guid":"(.*?)"'
+    re_bds = '"base62Id":"'+str(real_id)+'","guid":"(.*?)"'
     pattern = re.compile(re_bds,re.S)
     key = pattern.findall(html)[0]
     url = url + key + '&&format=js&serviceid=1&callback=getVideoComment1'
@@ -189,6 +234,19 @@ def get_file_ifeng_url(**kwarg):
     url_list = pattern.findall(html)
     url = url_list[-1]
     return url
+
+@retry(max_retries=3, sleep_duration=1)
+def get_search_ifeng_list(**kwarg):
+    keyword = kwarg['keyword']
+    keyword_quote = parse.quote(keyword)
+    url = 'https://shankapi.ifeng.com/season/getSoFengData/video/'+keyword_quote+'/1'
+    ua = UA(verify_ssl=False)
+    headers = {'User-Agent': ua.random}
+    search_req = requests.get(url=url,headers=headers)
+    search_json = search_req.json()
+    item_list = search_json['data']['items']
+    video_id_list = [item_list[i]['id'] for i in range(len(item_list))]
+    return video_id_list
 
 def get_like_thepaper_url(**kwarg):
     id = kwarg['video_id']
@@ -253,15 +311,16 @@ def get_file_tudou_url(**kwarg):
     # HLS
     id = kwarg['video_id']
     timemap = int(time())
-    ccode_list = ['0562','0564','0566','0568']
-    url = 'https://ups.youku.com/ups/get.json?vid=XNTk'+id+'==&ccode='+choice(ccode_list)+'&client_ip=192.168.1.1&client_ts='+str(timemap)+'&utid=oEQIGJ3tKmkCAXty8yEG6ff/&ckey=DIl58SLFxFNndSV1GFNnMQVYkx1PP5tKe1siZu/86PR1u/Wh1Ptd+WOZsHHWxysSfAOhNJpdVWsdVJNsfJ8Sxd8WKVvNfAS8aS8fAOzYARzPyPc3JvtnPHjTdKfESTdnuTW6ZPvk2pNDh4uFzotgdMEFkzQ5wZVXl2Pf1/Y6hLK0OnCNxBj3+nb0v72gZ6b0td+WOZsHHWxysSo/0y9D2K42SaB8Y/+aD2K42SaB8Y/+ahU+WOZsHcrxysooUeND'
+    #ccode_list = ['0562','0564','0566','0568']
+    ccode_list = ['0568']
+    url = 'https://ups.youku.com/ups/get.json?vid='+id+'==&ccode='+choice(ccode_list)+'&client_ip=192.168.1.1&client_ts='+str(timemap)+'&utid=ZLAcG0OZ7R0CAW/HQG5Hlr5g&ckey=DIl58SLFxFNndSV1GFNnMQVYkx1PP5tKe1siZu/86PR1u/Wh1Ptd+WOZsHHWxysSfAOhNJpdVWsdVJNsfJ8Sxd8WKVvNfAS8aS8fAOzYARzPyPc3JvtnPHjTdKfESTdnuTW6ZPvk2pNDh4uFzotgdMEFkzQ5wZVXl2Pf1/Y6hLK0OnCNxBj3+nb0v72gZ6b0td+WOZsHHWxysSo/0y9D2K42SaB8Y/+aD2K42SaB8Y/+ahU+WOZsHcrxysooUeND'
     ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random,'cookie':'cna=oEQIGJ3tKmkCAXty8yEG6ff/; _m_h5_tk=34dde030b19bc02e51e9bb3add339bb8_1680074627374; _m_h5_tk_enc=15485aba829f4257b77b8b363315ee36'}
+    headers = {'User-Agent': ua.random,'cookie':'cna=ZLAcG0OZ7R0CAW/HQG5Hlr5g; _m_h5_tk=030993245dada8abbb0cfab663609597_1680601890619; _m_h5_tk_enc=f1131218d0b12d50bba68cf86ff34bbb'}
     resq = requests.get(url=url,headers=headers)
     resq_json = resq.json()
     m3u8_url_list = resq_json['data']['stream']
     for m3u8_url in m3u8_url_list:
-        if m3u8_url['stream_type'] == 'mp4hd':
+        if m3u8_url['stream_type'] == 'mp4hd' or m3u8_url['stream_type'] == 'mp4sd':
             m3u8_url = m3u8_url['m3u8_url']
             break
     return m3u8_url
@@ -276,6 +335,13 @@ def get_ts_tudou_url(**kwarg):
     pattern = re.compile('(http.*?)[\r\n ]*?#', re.S)
     ts_list = pattern.findall(m3u8)
     return ts_list
+
+def get_search_tudou_list(**kwarg):
+    keyword = parse.quote(kwarg['keyword']) +'+-'+parse.quote('优酷')
+    site = 'play.tudou.com/v_show'
+    re_bds = 'id_([0-9a-zA-Z]*?)%3D%3D.*?土豆tudou.com版权所有'
+    id_list = search_by_google(keyword,site,re_bds)
+    return id_list
 
 def get_url_cctv(**kwarg):
     id = kwarg['id']
@@ -356,10 +422,9 @@ def get_search_cctv_list(**kwarg):
     video_id_list = pattern_data.findall(str(data_list))
     return video_id_list
 
-
 # v.baidu.com
 
-v = WebSiteInfo(get_url=get_url_v,get_file=get_file_v_url)
+v = WebSiteInfo(get_url=get_url_v,get_file=get_file_v_url,get_search=get_search_v_list)
 v.set_ux(config_dict['v'])
 
 WebDict['v'] = v
@@ -380,7 +445,7 @@ WebDict['ku6'] = ku6
 
 # v.ifeng.com
 
-ifeng = WebSiteInfo(get_url=get_url_ifeng,get_like=get_like_ifeng_url,get_view=get_view_ifeng_url,get_file=get_file_ifeng_url)
+ifeng = WebSiteInfo(get_url=get_url_ifeng,get_like=get_like_ifeng_url,get_view=get_view_ifeng_url,get_file=get_file_ifeng_url,get_search=get_search_ifeng_list)
 ifeng.set_ux(config_dict['ifeng'])
 
 WebDict['ifeng'] = ifeng
@@ -394,7 +459,7 @@ WebDict['thepaper'] = thepaper
 
 # www.tudou.com
 
-tudou = WebSiteInfo(get_url=get_url_tudou,get_file=get_file_tudou_url,get_ts=get_ts_tudou_url)
+tudou = WebSiteInfo(get_url=get_url_tudou,get_file=get_file_tudou_url,get_ts=get_ts_tudou_url,get_search=get_search_tudou_list)
 tudou.set_ux(config_dict['tudou'])
 
 WebDict['tudou'] = tudou
