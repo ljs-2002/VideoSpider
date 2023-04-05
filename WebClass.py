@@ -10,20 +10,22 @@ from hashlib import md5
 
 WebDict = {}
 
-ProxyPool_url = 'http://101.42.41.111:5555/random'
+ProxyPool_url = 'http://101.42.41.111:5555/random' #获取随机IP代理的地址
 
 def get_random_proxy():
     """
     get random proxy from proxypool
     :return: proxy
     """
-    try:
-        proxy = requests.get(ProxyPool_url).text.strip()
-        proxies = {
-            'http': 'http://' + proxy,
-        }
-    except Exception:
-        proxies = None
+    proxies = None
+    if ProxyPool_url != "":
+        try:
+            proxy = requests.get(ProxyPool_url).text.strip()
+            proxies = {
+                'http': 'http://' + proxy,
+            }
+        except Exception:
+            proxies = None
     return proxies
 
 def retry(max_retries=3, sleep_duration=1):
