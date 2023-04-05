@@ -11,7 +11,7 @@ choice = ['v','haokan','ku6','ifeng','thepaper','tudou','cctv']
 
 output_file_name = "output.csv"
 save_as_excel_state = True
-multi_process_state = False
+multi_process_state = True
 
 spider = VideoSpider()
 def insert(web_id:str,video_id:str):
@@ -156,7 +156,7 @@ with gr.Blocks(theme='gstaff/sketch') as demo:
 
                 gr.Markdown("The default output path is the output folder under the current path, and the excel file will be saved as **output.xlsx**")
                 save_as_excel = gr.Checkbox(label="Save as excel?",value=True,interactive=True).style(container=True)
-                multi_process = gr.Checkbox(label="Multi-process?",value=False,interactive=True).style(container=True)
+                multi_process = gr.Checkbox(label="Multi-process?",value=True,interactive=True).style(container=True)
 
                 deleteDropdown = gr.Dropdown(choices=task_list, label="Choose to delete", type="index",value = task_list[-1])
                 button_delete = gr.Button(label="Delete",value='❌ Delete',variant='primary')

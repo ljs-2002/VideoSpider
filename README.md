@@ -42,6 +42,7 @@
 - 本程序的python库依赖如下，已经包含在`requirements.txt`中，可以使用 `python -m pip install -r requirements.txt` 进行安装。
 
 ```
+browser_cookie3==0.17.1
 fake_useragent==1.1.1
 gradio==3.24.1
 lxml==4.9.1

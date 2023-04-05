@@ -2,7 +2,8 @@ import requests
 import csv
 import re
 import sys
-from multiprocessing import Pool,freeze_support, Manager, Semaphore,Queue
+import browser_cookie3
+from multiprocessing import Pool,freeze_support, Manager
 from shutil import rmtree
 from pandas.io.excel import ExcelWriter
 from pandas import read_csv
@@ -14,7 +15,13 @@ from copy import deepcopy
 from json import load,dump
 from lxml import etree
 from fake_useragent import UserAgent as UA
-from WebClass import WebDict
+from WebClass import WebDict,get_random_proxy
+
+task_order = ['tudou','haokan','v','ku6','ifeng','thepaper','cctv']
+
+def sort_order(d):
+    return task_order.index(d['web_id'])
+
 
 # 每个网站有四个属性，id, 基础url，params，解析的xpath, 以及对应的函数
 # 其中xpath 包含5个值：标题，简介，播放量,热力值,点赞数
@@ -52,11 +59,12 @@ class VideoSpider(object):
         self.fail_log = path.join(self.output_dir, 'fail_log')
         self.fieldNames = ['web_id','video_id','title', 'intro', 'hot', 'like', 'view']
 
-    def get_from_url(self,url,func_name,params = None, stream = False, expect = None):
+    def get_from_url(self,url,func_name,params = None, stream = False, expect = None,Proxies=None):
         ua = UA(verify_ssl=False)
+        cj = browser_cookie3.load()
         for _ in range(3):
             headers = {'User-Agent': ua.random}
-            res = requests.get(url=url, headers=headers, stream = stream, params=params)
+            res = requests.get(url=url, headers=headers, stream = stream, params=params,proxies=Proxies,cookies=cj)
             if res.status_code == 200:
                 break
             else:
@@ -85,9 +93,9 @@ class VideoSpider(object):
         pattern = re.compile(re_bds, re.S)
         return pattern.findall(html)[0]
 
-    def download(self,filename,desc,url,stream=False, mode='wb'):
+    def download(self,filename,desc,url,stream=False, mode='wb',Proxies = None):
         #增加返回code检查，如果返回code不是200，就不下载，直接返回
-        file = self.get_from_url(url,sys._getframe().f_code.co_name,stream=stream,expect = RuntimeError("download failed."))
+        file = self.get_from_url(url,sys._getframe().f_code.co_name,stream=stream,expect = RuntimeError("download failed."),Proxies=Proxies)
         if file is None:
             return True
         
@@ -116,10 +124,15 @@ class VideoSpider(object):
         path.exists(dir_path) and rmtree(dir_path)
         makedirs(dir_path)
         print('downloading ts file...')
+        if self.web_id != 'tudou':
+            proxies = get_random_proxy()
+            print(f'using proxies:{proxies}')
+        else:
+            proxies = None
         for ts in ts_list:
             tempname = dir_path+name_dict[ts]+'.ts'
             desc = 'Downloading '+self.web_id+self.video_id+'_'+name_dict[ts]
-            if self.download(filename=tempname, desc=desc, url=ts) :
+            if self.download(filename=tempname, desc=desc, url=ts,Proxies=proxies) :
                 print('download failed, aborting...')
                 break
         print('done.')
@@ -145,7 +158,9 @@ class VideoSpider(object):
             desc = 'Downloading '+self.web_id+self.video_id
             filename = './file/MP4/'+self.web_id + self.video_id + video_title[:15] + '.mp4'
             print('downloading MP4 file...')
-            self.download(filename, desc, url, stream = True)
+            proxies = get_random_proxy()
+            print(f'using proxies:{proxies}')
+            self.download(filename, desc, url, stream = True,Proxies=proxies)
             print('done.')
 
     def parse_html_xpath(self, html,xpath):
@@ -308,7 +323,7 @@ class VideoSpider(object):
                     print("\033[36m{0}:{1}:错误：{2}\033[0m".format(video['web_id'], video['video_id'],e))
                     if(retry_time < 2):
                         print("\033[34m{0}:{1}:重试中...\033[0m".format(video['web_id'], video['video_id']))
-                        sleep(2)
+                        sleep(uniform(0.5,2))
                     else:
                         print("\033[44m{0}:{1}:重试次数超过限制，跳过\033[0m".format(video['web_id'], video['video_id']))
                         #加入失败列表
@@ -332,7 +347,7 @@ class VideoSpider(object):
                 self.task_Queue.task_done()
             if not self.multi_process or self.task_Queue.empty():
                 break
-            sleep(uniform(0, 0.5))
+            #sleep(uniform(0, 0.5))
         return success
 
     def run(self,task_file:str ='./config/VideoList.json',
@@ -384,18 +399,20 @@ class VideoSpider(object):
             video_list = self.video_list
         print("task amount: ",len(video_list),flush=True)
         
+        video_list.sort(key = sort_order)
         # 多进程
         if self.multi_process:
             print("\033[32mfreeze_support...",flush=True)
             freeze_support()
+            manager = Manager()
             print("create share Queue...",flush=True)
-            self.task_Queue = Manager().Queue(len(video_list))
+            self.task_Queue = manager.Queue(len(video_list))
             print("create share list...",flush=True)
-            self.fail_list = Manager().list()
+            self.fail_list = manager.list()
             print("create share csv_lock...",flush=True)
-            self.csv_lock = Manager().Lock()
+            self.csv_lock = manager.Lock()
             print("create share fail_list lock...\033[0m",flush=True)
-            self.fail_list_lock = Manager().Lock()
+            self.fail_list_lock = manager.Lock()
             print("insert queue...",flush=True)
             for task in video_list:
                 self.task_Queue.put(task)
@@ -418,6 +435,7 @@ class VideoSpider(object):
             print("\033[32mMulti_process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
             if len(self.fail_list)> 0:
                 fail_list = list(self.fail_list)
+            manager.shutdown()
         # 单进程
         else:
             time_start = time()

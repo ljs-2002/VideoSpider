@@ -4,10 +4,27 @@ from fake_useragent import UserAgent as UA
 from random import choice
 import re
 import requests
+import browser_cookie3
 from urllib import parse
 from hashlib import md5
 
 WebDict = {}
+
+ProxyPool_url = 'http://101.42.41.111:5555/random'
+
+def get_random_proxy():
+    """
+    get random proxy from proxypool
+    :return: proxy
+    """
+    try:
+        proxy = requests.get(ProxyPool_url).text.strip()
+        proxies = {
+            'http': 'http://' + proxy,
+        }
+    except Exception:
+        proxies = None
+    return proxies
 
 def retry(max_retries=3, sleep_duration=1):
     def decorator(func):
@@ -32,6 +49,7 @@ class WebSiteInfo():
         self.params = {}
         self.xpath = {}
         self.id = ''
+        self.cookie = ''
         self.default_get_url = get_url
         self.default_get_params = get_param
         self.default_get_view = get_view
@@ -87,6 +105,12 @@ def search_by_google(keyword,site,re_bds):
     return id_list
 
 def load_config():
+    global tudou_ckey
+    ckey_url = 'https://g.alicdn.com/player/beta-ykplayer/2.1.76/youku-player.min.js'
+    ckey_req = requests.get(url=ckey_url)
+    re_bds_ckey = '(?=this.*?)this\.uabModule\.getUA\(\):"([A-Za-z0-9/\+]*)"}'
+    pattern = re.compile(re_bds_ckey,re.S)
+    tudou_ckey = pattern.findall(ckey_req.text)[0]
     with open("./config/config.json", "r", encoding='utf-8') as f:
         config_dict = load(f)
     return config_dict
@@ -112,18 +136,7 @@ def get_search_v_list(**kwarg):
     keyword = parse.quote(kwarg["keyword"])
     re_bds = '//baishi\.xiaodutv\.com/watch/([0-9]*?)\.html'
     id_list = search_by_google(keyword,'baishi.xiaodutv.com/watch',re_bds)
-    # id_list = []
-    # i=0
-    # while len(id_list)<10:
-    #     search_url = 'https://www.google.com/search?q='+parse.quote('intitle:'+keyword)+'+'+parse.quote('+site:baishi.xiaodutv.com/watch')+'&start='+str(i)
-    #     ua = UA()
-    #     headers = {'User-Agent': ua.random}
-    #     req = requests.get(url=search_url, headers=headers)
-    #     html = req.content.decode('utf-8')
-    #     re_bds = '//baishi\.xiaodutv\.com/watch/([0-9]*?)\.html'
-    #     pattern = re.compile(re_bds,re.S)
-    #     id_list.extend(list(set(pattern.findall(html))))
-    #     i+=10
+
     return id_list
 
 
@@ -164,9 +177,9 @@ def get_search_haokan_list(**kwarg):
             }
     ua = UA()
     ref = 'https://haokan.baidu.com/web/search/page?query={}&sfrom=recommend'.format(kw)
-    cookie ='BDUSS=VTWFZ1VERneElZfkRZS3FkWWktdmFRYzktNWs4RHNDdU1vWXllZ3JPU0hBRTFqRVFBQUFBJCQAAAAAAAAAAAEAAABkzhj6ztLO3sTjw~vQodfkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIdzJWOHcyVjdk'
-    headers = {'User-Agent': ua.random, 'Referer':ref, 'Cookie':cookie}
-    req = requests.get(url='https://haokan.baidu.com/haokan/ui-search/pc/search/video?',params=params,headers=headers)
+    cj=browser_cookie3.edge(domain_name='haokan.baidu.com')
+    headers = {'User-Agent': ua.random, 'Referer':ref}
+    req = requests.get(url='https://haokan.baidu.com/haokan/ui-search/pc/search/video?',params=params,headers=headers,cookies=cj)
     req_json = req.json()
     url_list = req_json['data']['list']
     vid_list = [url_list[i]['vid'] for i in range(len(url_list))]
@@ -310,17 +323,29 @@ def get_url_tudou(**kwarg):
 def get_file_tudou_url(**kwarg):
     # HLS
     id = kwarg['video_id']
-    timemap = int(time())
-    #ccode_list = ['0562','0564','0566','0568']
-    ccode_list = ['0568']
-    url = 'https://ups.youku.com/ups/get.json?vid='+id+'==&ccode='+choice(ccode_list)+'&client_ip=192.168.1.1&client_ts='+str(timemap)+'&utid=ZLAcG0OZ7R0CAW/HQG5Hlr5g&ckey=DIl58SLFxFNndSV1GFNnMQVYkx1PP5tKe1siZu/86PR1u/Wh1Ptd+WOZsHHWxysSfAOhNJpdVWsdVJNsfJ8Sxd8WKVvNfAS8aS8fAOzYARzPyPc3JvtnPHjTdKfESTdnuTW6ZPvk2pNDh4uFzotgdMEFkzQ5wZVXl2Pf1/Y6hLK0OnCNxBj3+nb0v72gZ6b0td+WOZsHHWxysSo/0y9D2K42SaB8Y/+aD2K42SaB8Y/+ahU+WOZsHcrxysooUeND'
+
+    # get utid
+    cookie_jar = browser_cookie3.edge(domain_name='tudou.com')
+    cookie_dict = requests.utils.dict_from_cookiejar(cookie_jar)
+    utid = cookie_dict['cna']
+    ccode_list = ['0562','0564','0566','0568']
+    #ccode_list = ['0562']
+    url = 'https://ups.youku.com/ups/get.json'
+    params = {
+        'vid': id+'==',
+        'ccode': choice(ccode_list),
+        'client_ip': '192.168.1.1',
+        'client_ts': str(int(time())),
+        'utid': utid,
+        'ckey': tudou_ckey
+    }
     ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random,'cookie':'cna=ZLAcG0OZ7R0CAW/HQG5Hlr5g; _m_h5_tk=030993245dada8abbb0cfab663609597_1680601890619; _m_h5_tk_enc=f1131218d0b12d50bba68cf86ff34bbb'}
-    resq = requests.get(url=url,headers=headers)
+    headers = {'User-Agent': ua.random}
+    resq = requests.get(url=url,headers=headers,cookies=cookie_jar,params=params)
     resq_json = resq.json()
     m3u8_url_list = resq_json['data']['stream']
     for m3u8_url in m3u8_url_list:
-        if m3u8_url['stream_type'] == 'mp4hd' or m3u8_url['stream_type'] == 'mp4sd':
+        if m3u8_url['stream_type'] == '3gphd' or m3u8_url['stream_type'] == '3gpsd':
             m3u8_url = m3u8_url['m3u8_url']
             break
     return m3u8_url
@@ -404,11 +429,11 @@ def get_ts_cctv_url(**kwarg):
 def get_search_cctv_list(**kwarg):
     keyword = kwarg['keyword']
     keyword_quote = parse.quote(keyword)
-    cookie = 'cna=92ujHLvFsHMCAW/HRIEHXtnw'
+    cj = browser_cookie3.edge(domain_name='v.cctv.com')
     ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random,'Cookie':cookie}
+    headers = {'User-Agent': ua.random}
     search_page_url = 'https://v.cctv.com/sousuo/index.shtml?title=' + keyword_quote
-    search_page_req = requests.get(url=search_page_url,headers=headers)
+    search_page_req = requests.get(url=search_page_url,headers=headers,cookies=cj)
     search_page_html = search_page_req.content.decode('utf-8')
     re_bds_search_page = '//media.app.cctv.com/vapi/video/vplist.do\?.*?chid=([A-Za-z0-9]*?)&title='
     pattern_search_page = re.compile(re_bds_search_page,re.S)
