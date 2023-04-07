@@ -1,21 +1,20 @@
 import requests
 import csv
 import re
-import sys
-import browser_cookie3
+import asyncio
+from sys import _getframe
 from multiprocessing import Pool,freeze_support, Manager
 from shutil import rmtree
 from pandas.io.excel import ExcelWriter
 from pandas import read_csv
-from os import path, makedirs, remove,system
-from tqdm import tqdm
+from os import path, makedirs, system
 from time import sleep, time
 from random import uniform
 from copy import deepcopy
 from json import load,dump
 from lxml import etree
-from fake_useragent import UserAgent as UA
-from WebClass import WebDict,get_random_proxy
+from WebClass import WebDict
+from function import get_from_url,single_downloader,async_downloader,async_downloader_clip,get_random_proxy, multi_thread_downloader,multi_thread_downloader_clip
 
 task_order = ['tudou','haokan','v','ku6','ifeng','thepaper','cctv']
 
@@ -59,64 +58,20 @@ class VideoSpider(object):
         self.fail_log = path.join(self.output_dir, 'fail_log')
         self.fieldNames = ['web_id','video_id','title', 'intro', 'hot', 'like', 'view']
 
-    def get_from_url(self,url,func_name,params = None, stream = False, expect = None,Proxies=None):
-        ua = UA(verify_ssl=False)
-        cj = browser_cookie3.load()
-        for _ in range(3):
-            headers = {'User-Agent': ua.random}
-            res = requests.get(url=url, headers=headers, stream = stream, params=params,proxies=Proxies,cookies=cj)
-            if res.status_code == 200:
-                break
-            else:
-                print(f'\033[35m{self.web_id}{self.video_id}:get failed with code {res.status_code}, retrying...\033[0m')
-                sleep(uniform(0.5, 1.5))
-        
-        if res.status_code != 200:
-            print(f'\033[31m{self.web_id}:{self.video_id} get failed with code {res.status_code} in {func_name}, aborting...\033[0m')
-            if expect is None:
-                return None
-            else:
-                raise expect
-        
-        return res
-
     def get_html_request(self,url,params):
-        res = self.get_from_url(url, sys._getframe().f_code.co_name, params=params,expect = RuntimeError)
+        res = get_from_url(url, self.web_id,self.video_id,_getframe().f_code.co_name, params=params,expect = RuntimeError)
         html = res.content.decode('utf-8')
         self.parse_html_xpath(html,self.xpath)
 
     def get_and_prase(self, url, re_bds):
-        res = self.get_from_url(url,sys._getframe().f_code.co_name)
+        res = get_from_url(url,self.web_id,self.video_id,_getframe().f_code.co_name)
         if res is None:
             return None
         html = res.text
         pattern = re.compile(re_bds, re.S)
         return pattern.findall(html)[0]
 
-    def download(self,filename,desc,url,stream=False, mode='wb',Proxies = None):
-        #增加返回code检查，如果返回code不是200，就不下载，直接返回
-        file = self.get_from_url(url,sys._getframe().f_code.co_name,stream=stream,expect = RuntimeError("download failed."),Proxies=Proxies)
-        if file is None:
-            return True
-        
-        # 去除文件名中的空格及竖线
-        filename = filename.replace(" ","")
-        filename = filename.replace("|","_")
-        path.exists(filename) and remove(filename)
-        with open(filename, mode) as f,tqdm(
-            desc = desc,
-            total = int(file.headers['content-length']),
-            unit = 'iB',
-            unit_scale = True,
-            unit_divisor = 1024,
-            leave= False,
-        ) as bar:
-            for chunk in file.iter_content(chunk_size=1024):
-                if chunk:
-                    size = f.write(chunk)
-                    bar.update(size)
-        return False
-    
+
     def hls_download(self,url,dir_path,filename): 
         ts_list = self.ts_url_func(url=url)
         num_list = [str(i).zfill(8) for i in range(len(ts_list))]
@@ -124,17 +79,21 @@ class VideoSpider(object):
         path.exists(dir_path) and rmtree(dir_path)
         makedirs(dir_path)
         print('downloading ts file...')
+
         if self.web_id != 'tudou':
-            proxies = get_random_proxy()
-            print(f'using proxies:{proxies}')
+            loop = asyncio.get_event_loop()
+            task = [async_downloader(ts,dir_path+name_dict[ts]+'.ts','Downloading '+self.web_id+self.video_id+'_'+name_dict[ts],self.web_id,self.video_id) for ts in ts_list]
+            print('start async download')
+            loop.run_until_complete(asyncio.wait(task))
         else:
-            proxies = None
-        for ts in ts_list:
-            tempname = dir_path+name_dict[ts]+'.ts'
-            desc = 'Downloading '+self.web_id+self.video_id+'_'+name_dict[ts]
-            if self.download(filename=tempname, desc=desc, url=ts,Proxies=proxies) :
-                print('download failed, aborting...')
-                break
+            # for ts in ts_list:
+            #     self.download(dir_path+name_dict[ts]+'.ts','Downloading '+self.web_id+self.video_id+'_'+name_dict[ts],ts,stream = True)
+            file_name_list = []
+            for ts in ts_list:
+                file_name_list.append(dir_path+name_dict[ts]+'.ts')
+            print('start multi thread download')
+            multi_thread_downloader(ts_list,self.web_id,self.video_id,file_name_list)
+            
         print('done.')
         print('Merging ts file...')
         # 使用ffmpeg合并ts文件为MP4
@@ -152,15 +111,28 @@ class VideoSpider(object):
         url = self.file_url_func(html=html,video_id = self.video_id)
         if 'm3u8' in url:
             path = './file/HLS/'+self.web_id+self.video_id+'/'
-            filename = './file/HLS/'+self.web_id + self.video_id + video_title[:5] + '.mp4'
+            filename = './file/HLS/'+self.web_id + self.video_id + video_title[:10] + '.mp4'
+            # 删除特殊字符
+            filename = re.sub(r'[\\:*?"<>| | ：]', '', filename)
             self.hls_download(url,path,filename)
         else:
             desc = 'Downloading '+self.web_id+self.video_id
             filename = './file/MP4/'+self.web_id + self.video_id + video_title[:15] + '.mp4'
+            filename.strip()
+            filename = re.sub(r'[\\:*?"<>| | ：，。：“’‘”]', '', filename)
             print('downloading MP4 file...')
             proxies = get_random_proxy()
             print(f'using proxies:{proxies}')
-            self.download(filename, desc, url, stream = True,Proxies=proxies)
+            head = requests.head(url)
+            head = head.headers
+            # 使用异步协程和多线程下载效率类似，但异步协程在Windows下会有报错，虽然不影响程序的运行，但是有碍观感
+            if head['Accept-Ranges']=='bytes':
+                multi_thread_downloader_clip(url,self.web_id,self.video_id,filename)
+                # loop = asyncio.get_event_loop()
+                # task=[async_downloader_clip(url,filename,self.web_id,self.video_id)]
+                # loop.run_until_complete(asyncio.wait(task))
+            else:
+                single_downloader(filename, desc, url, Proxies=proxies)
             print('done.')
 
     def parse_html_xpath(self, html,xpath):
@@ -343,11 +315,10 @@ class VideoSpider(object):
             del (Web)
             if success :
                 print("{0}:{1} down".format(video['web_id'], video['video_id']))
-            if self.multi_process:
-                self.task_Queue.task_done()
+            
             if not self.multi_process or self.task_Queue.empty():
                 break
-            #sleep(uniform(0, 0.5))
+            
         return success
 
     def run(self,task_file:str ='./config/VideoList.json',
@@ -396,8 +367,11 @@ class VideoSpider(object):
         if not self.gui_mod :
             video_list = self.get_video_list()
         else:
+            #从前端获取视频任务列表，并写入到任务文件中
             video_list = self.video_list
-        print("task amount: ",len(video_list),flush=True)
+        
+        task_size = len(video_list)
+        print("task amount: ",task_size,flush=True)
         
         video_list.sort(key = sort_order)
         # 多进程
@@ -432,7 +406,7 @@ class VideoSpider(object):
             for ret in result_list:
                 ret.get()
             time_end = time()
-            print("\033[32mMulti_process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
+            print("\033[32mtotal success task: ",str(task_size-len(self.fail_list))," Multi_process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
             if len(self.fail_list)> 0:
                 fail_list = list(self.fail_list)
             manager.shutdown()
@@ -443,7 +417,7 @@ class VideoSpider(object):
                 self.launch(video)
                 #sleep(uniform(0.5, 1))
             time_end = time()
-            print("\033[32mSingle Process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
+            print("\033[32mtotal success task: ",str(task_size-len(fail_list))," Single Process mod time usage: ",time_end-time_start,"\033[0m",flush=True)
 
         # 显示和保存失败列表
         if len(fail_list)> 0:

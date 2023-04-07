@@ -4,6 +4,6 @@
     "ku6":{ "url": "https://www.ku6.com/video/detail?", "xpath": {"title": "document.title = \"(.*?)\";", "intro": "", "hot": "", "like": "", "view": ""}},
     "ifeng":{"url": "https://v.ifeng.com/c/", "xpath":{"title": "//meta[@name='irTitle']/@content", "intro": "", "hot": "", "like": "ding\":(.*?)}}}", "view": "browse\":{\".*?\":(.*?)}}}"}},
     "thepaper": {"url": "https://www.thepaper.cn/newsDetail_forward_", "xpath": {"title": "//*[contains(@class,'header_title')]/text()", "intro": "//p[@class='header_desc__OlmEB']/text()", "hot": "", "like": "praiseTimes\":\"(.*?)\",", "view": ""}},
-    "tudou":{"url": "https://play.tudou.com/v_show/id_XNTk", "xpath":{"title": "//meta[@name='irTitle']/@content", "intro": "", "hot": "", "like": "", "view": ""}},
+    "tudou":{"url": "https://play.tudou.com/v_show/id_", "xpath":{"title": "//meta[@name='irTitle']/@content", "intro": "", "hot": "", "like": "", "view": ""}},
     "cctv":{"url": "https://v.cctv.com/", "xpath":{"title": "//meta[@property='og:title']/@content", "intro": "//meta[@property='og:description']/@content", "hot": "", "like": "num\":([0-9]*?)}", "view": ""}}
 }

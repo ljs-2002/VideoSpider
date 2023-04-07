@@ -12,10 +12,11 @@ choice = ['v','haokan','ku6','ifeng','thepaper','tudou','cctv']
 output_file_name = "output.csv"
 save_as_excel_state = True
 multi_process_state = True
+total_task_size = 0
 
 spider = VideoSpider()
 def insert(web_id:str,video_id:str):
-    global task_list,task_chatbot,task_spider
+    global task_list,task_chatbot,task_spider,total_task_size
     
     if len(video_id) > 0 and len(web_id) > 0:
         if task_list[0] == "":
@@ -25,11 +26,11 @@ def insert(web_id:str,video_id:str):
             task_chatbot.pop(0)
         task_chatbot.append([None,'web_id: '+web_id+', video_id: '+video_id])
         task_spider.append({"web_id":web_id,"video_id":video_id})
-    
-    return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),"",task_chatbot
+        total_task_size += 1
+    return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),"",task_chatbot,"**total task: "+str(total_task_size)+"**"
 
 def delete(index):
-    global task_list,task_chatbot,task_spider
+    global task_list,task_chatbot,task_spider,total_task_size
     
     index = int(index)
     task_list.pop(index)
@@ -38,9 +39,10 @@ def delete(index):
     task_chatbot.pop(index)
     if len(task_chatbot) == 0:
         task_chatbot.append([None,None])
-    task_spider.pop(index-1)
-    
-    return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot
+    if len(task_spider)> 0:
+        del_task = task_spider.pop(index)
+        total_task_size -= 1
+    return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot,"**total task: "+str(total_task_size)+"**"
 
 def change_save_as_excel(state:bool):
     global save_as_excel_state
@@ -65,7 +67,7 @@ def dict_list2list_list(dict_list):
     return list_list
 
 def load_video_list(file):
-    global task_list,task_chatbot,task_spider
+    global task_list,task_chatbot,task_spider,total_task_size
 
     if file is not None and len(file)>0:
         json_file = loads(file)
@@ -78,11 +80,11 @@ def load_video_list(file):
         for i in list_list:
             task_list.append(str(i[0]+'_'+i[1]))
             task_chatbot.append([None,'web_id: '+i[0]+', video_id: '+i[1]])
-    
-    return gr.File.update(None), gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot
+        total_task_size += len(list_list)
+    return gr.File.update(None), gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot,"**total task: "+str(total_task_size)+"**"
 
 def search_by_keyword(web_id,keyword):
-    global task_list,task_chatbot,task_spider
+    global task_list,task_chatbot,task_spider,total_task_size
     
     if len(keyword) >0 and len(web_id) > 0:
         result=spider.search_by_keyword([web_id+":"+keyword],True)
@@ -96,13 +98,13 @@ def search_by_keyword(web_id,keyword):
             task_list.append(str(web_id+'_'+video_id))
             task_chatbot.append([None,'web_id: '+web_id+', video_id: '+video_id])
             task_spider.append({"web_id":web_id,"video_id":video_id})
-    
-    return "",gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot
+        total_task_size += len(result)
+    return "",gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot,"**total task: "+str(total_task_size)+"**"
 
 def start():
-    global task_spider,output_file_name,save_as_excel_state
+    global task_spider,output_file_name,save_as_excel_state,total_task_size
     
-    if len(task_spider) > 0:
+    if total_task_size > 0:
         stdout.flush()
         print('===================== task start =========================',flush=True)
         stdout.flush()
@@ -119,9 +121,10 @@ def start():
         stdout.flush()
         print('===================== task end =========================',flush=True)
         stdout.flush()
-        return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot
+        total_task_size = 0
+        return gr.Dropdown.update(choices=task_list,value=task_list[-1],label="Choose to delete"),task_chatbot,"**total task: "+str(total_task_size)+"**"
     else:
-        return "",""
+        return "","","**total task: "+str(total_task_size)+"**"
 
 with gr.Blocks(theme='gstaff/sketch') as demo:
     with gr.Row():
@@ -157,7 +160,8 @@ with gr.Blocks(theme='gstaff/sketch') as demo:
                 gr.Markdown("The default output path is the output folder under the current path, and the excel file will be saved as **output.xlsx**")
                 save_as_excel = gr.Checkbox(label="Save as excel?",value=True,interactive=True).style(container=True)
                 multi_process = gr.Checkbox(label="Multi-process?",value=True,interactive=True).style(container=True)
-
+                
+                total_task=gr.Markdown(value = "**total task: "+str(total_task_size)+"**")
                 deleteDropdown = gr.Dropdown(choices=task_list, label="Choose to delete", type="index",value = task_list[-1])
                 button_delete = gr.Button(label="Delete",value='❌ Delete',variant='primary')
 
@@ -168,19 +172,19 @@ with gr.Blocks(theme='gstaff/sketch') as demo:
     # event
     button_insert.click(insert, 
                     inputs = [insertDropdown,insertTextbox],
-                    outputs = [deleteDropdown,insertTextbox,outputBot])
+                    outputs = [deleteDropdown,insertTextbox,outputBot,total_task])
 
     button_delete.click(delete, 
                     inputs = [deleteDropdown],
-                    outputs = [deleteDropdown,outputBot])
+                    outputs = [deleteDropdown,outputBot,total_task])
     
     save_as_excel.change(change_save_as_excel,[save_as_excel])
     multi_process.change(change_multi_process,[multi_process])
 
     button_set_filename.click(set_file_name,[save_file_name],[save_file_name])
     button_load_task.click(load_video_list,[task_file],[task_file,deleteDropdown,outputBot])
-    button_insert_search.click(search_by_keyword,[search_website_dropdown,search_keyword],[search_keyword,deleteDropdown,outputBot])
-    button_start.click(start,[],[deleteDropdown,outputBot])
+    button_insert_search.click(search_by_keyword,[search_website_dropdown,search_keyword],[search_keyword,deleteDropdown,outputBot,total_task])
+    button_start.click(start,[],[deleteDropdown,outputBot,total_task])
 
 #print("请访问 http://localhost:12345 或你指定的端口")
 

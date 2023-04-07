@@ -1,49 +1,14 @@
-from json import load,dumps
-from time import time,sleep
-from fake_useragent import UserAgent as UA
-from random import choice
 import re
 import requests
-import browser_cookie3
+from json import dumps
+from time import time
+from random import choice
 from urllib import parse
 from hashlib import md5
+from function import retry,load_config,cookie_jar_all,ua_global
 
 WebDict = {}
-
-ProxyPool_url = 'http://101.42.41.111:5555/random' #获取随机IP代理的地址
-
-def get_random_proxy():
-    """
-    get random proxy from proxypool
-    :return: proxy
-    """
-    proxies = None
-    if ProxyPool_url != "":
-        try:
-            proxy = requests.get(ProxyPool_url).text.strip()
-            proxies = {
-                'http': 'http://' + proxy,
-            }
-        except Exception:
-            proxies = None
-    return proxies
-
-def retry(max_retries=3, sleep_duration=1):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            for i in range(max_retries):
-                try:
-                    result = func(*args, **kwargs)
-                    return result
-                except Exception:
-                    if i < max_retries - 1:
-                        print(f"Retrying after {sleep_duration} seconds...")
-                        sleep(sleep_duration)
-                    else:
-                        print("Max retries exceeded. Aborting.")
-                        raise
-        return wrapper
-    return decorator
+config_dict,tudou_ckey = load_config()
 
 class WebSiteInfo():
     def __init__(self, get_url=None, get_param=None, get_view=None, get_like=None, get_file=None, get_ts=None,get_search=None) -> None:
@@ -51,7 +16,6 @@ class WebSiteInfo():
         self.params = {}
         self.xpath = {}
         self.id = ''
-        self.cookie = ''
         self.default_get_url = get_url
         self.default_get_params = get_param
         self.default_get_view = get_view
@@ -95,8 +59,7 @@ def search_by_google(keyword,site,re_bds):
     i=0
     while len(id_list)<10:
         search_url = 'https://www.google.com/search?q='+'intitle:'+keyword+'+'+parse.quote('site:'+site)+'&start='+str(i)
-        ua = UA()
-        headers = {'User-Agent': ua.random}
+        headers = {'User-Agent': ua_global.random}
         req = requests.get(url=search_url, headers=headers)
         html = req.content.decode('utf-8')
         pattern = re.compile(re_bds,re.S)
@@ -105,19 +68,6 @@ def search_by_google(keyword,site,re_bds):
         if i>50:
             break
     return id_list
-
-def load_config():
-    global tudou_ckey
-    ckey_url = 'https://g.alicdn.com/player/beta-ykplayer/2.1.76/youku-player.min.js'
-    ckey_req = requests.get(url=ckey_url)
-    re_bds_ckey = '(?=this.*?)this\.uabModule\.getUA\(\):"([A-Za-z0-9/\+]*)"}'
-    pattern = re.compile(re_bds_ckey,re.S)
-    tudou_ckey = pattern.findall(ckey_req.text)[0]
-    with open("./config/config.json", "r", encoding='utf-8') as f:
-        config_dict = load(f)
-    return config_dict
-
-config_dict = load_config()
 
 def get_url_v(**kwarg):
     id = kwarg['id']
@@ -177,10 +127,10 @@ def get_search_haokan_list(**kwarg):
                 'query': keyword,
                 'timestamp': timestamp
             }
-    ua = UA()
     ref = 'https://haokan.baidu.com/web/search/page?query={}&sfrom=recommend'.format(kw)
-    cj=browser_cookie3.edge(domain_name='haokan.baidu.com')
-    headers = {'User-Agent': ua.random, 'Referer':ref}
+    #cj=browser_cookie3.load(domain_name='haokan.baidu.com')
+    cj = cookie_jar_all
+    headers = {'User-Agent': ua_global.random, 'Referer':ref}
     req = requests.get(url='https://haokan.baidu.com/haokan/ui-search/pc/search/video?',params=params,headers=headers,cookies=cj)
     req_json = req.json()
     url_list = req_json['data']['list']
@@ -255,8 +205,7 @@ def get_search_ifeng_list(**kwarg):
     keyword = kwarg['keyword']
     keyword_quote = parse.quote(keyword)
     url = 'https://shankapi.ifeng.com/season/getSoFengData/video/'+keyword_quote+'/1'
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random}
+    headers = {'User-Agent': ua_global.random}
     search_req = requests.get(url=url,headers=headers)
     search_json = search_req.json()
     item_list = search_json['data']['items']
@@ -287,10 +236,9 @@ def get_search_thepaper_list(**kwarg):
     keyword = kwarg['keyword']
     contentType = 'application/json'
     video_author = ['七环视频','温度计','一级视场','World湃','湃客科技','记录湃','奇客解','围观','@所有人','大都会','追光灯','运动装','健寻记','AI播报','眼界','关键帧']
-    ua = UA(verify_ssl=False)
     url = 'https://api.thepaper.cn/search/web/news'
     headers = {
-        'User-Agent': ua.random,
+        'User-Agent': ua_global.random,
         "Content-Type": contentType
     }
     video_id_list=[]
@@ -327,7 +275,8 @@ def get_file_tudou_url(**kwarg):
     id = kwarg['video_id']
 
     # get utid
-    cookie_jar = browser_cookie3.edge(domain_name='tudou.com')
+    #cookie_jar = browser_cookie3.edge(domain_name='tudou.com')
+    cookie_jar = cookie_jar_all
     cookie_dict = requests.utils.dict_from_cookiejar(cookie_jar)
     utid = cookie_dict['cna']
     ccode_list = ['0562','0564','0566','0568']
@@ -341,8 +290,7 @@ def get_file_tudou_url(**kwarg):
         'utid': utid,
         'ckey': tudou_ckey
     }
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random}
+    headers = {'User-Agent': ua_global.random}
     resq = requests.get(url=url,headers=headers,cookies=cookie_jar,params=params)
     resq_json = resq.json()
     m3u8_url_list = resq_json['data']['stream']
@@ -355,8 +303,7 @@ def get_file_tudou_url(**kwarg):
 @retry(max_retries=3, sleep_duration=1)
 def get_ts_tudou_url(**kwarg):
     url = kwarg['url']
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random}
+    headers = {'User-Agent': ua_global.random}
     req_m3u8 = requests.get(url=url,headers=headers)
     m3u8 = req_m3u8.text
     pattern = re.compile('(http.*?)[\r\n ]*?#', re.S)
@@ -391,8 +338,7 @@ def get_file_cctv_url(**kwarg):
     re_bds = 'guid[ ]=[ ]"(.*?)";'
     pattern = re.compile(re_bds,re.S)
     guid = pattern.findall(html)[0]
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random}
+    headers = {'User-Agent': ua_global.random}
     video_info_url = 'https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid='+guid
     resq_video_info = requests.get(url=video_info_url,headers=headers)
     resq_video_info_json = resq_video_info.json()
@@ -411,8 +357,7 @@ def get_file_cctv_url(**kwarg):
 @retry(max_retries=3, sleep_duration=1)
 def get_ts_cctv_url(**kwarg): 
     url = kwarg['url']
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random,
+    headers = {'User-Agent': ua_global.random,
                'Referer': 'https://v.cctv.com/',
                'Origin': 'https://v.cctv.com',
                }
@@ -431,9 +376,9 @@ def get_ts_cctv_url(**kwarg):
 def get_search_cctv_list(**kwarg):
     keyword = kwarg['keyword']
     keyword_quote = parse.quote(keyword)
-    cj = browser_cookie3.edge(domain_name='v.cctv.com')
-    ua = UA(verify_ssl=False)
-    headers = {'User-Agent': ua.random}
+    #cj = browser_cookie3.edge(domain_name='v.cctv.com')
+    cj = cookie_jar_all
+    headers = {'User-Agent': ua_global.random}
     search_page_url = 'https://v.cctv.com/sousuo/index.shtml?title=' + keyword_quote
     search_page_req = requests.get(url=search_page_url,headers=headers,cookies=cj)
     search_page_html = search_page_req.content.decode('utf-8')

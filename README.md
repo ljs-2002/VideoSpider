@@ -16,6 +16,7 @@
 
 ```
 .
+│  function.py
 │  GUI.py
 │  main.py
 │  README.md
@@ -25,13 +26,14 @@
 │
 ├─assets
 │      favicon.ico
+│      gui.png
 │
 └─config
         config.json
         VideoList.json
 ```
 
-- `main.py`为入口程序，`Spider.py`为爬虫主程序，`WebClass.py`为网站类，设置获取网站URL、动态内容等的方法，`gui.py`为Web GUI
+- `main.py`为入口程序，`Spider.py`为爬虫主程序，`WebClass.py`为网站类，设置获取网站URL、动态内容等的方法，`gui.py`为Web GUI，`function.py`为公共函数和全局变量
 - `assets`文件夹中的文件用于Web GUI的图标显示及README的图片显示
 - `config.json`为针对各类网站的基本设置，`VideoList.json`为默认的带爬取视频配置文件
 
@@ -42,6 +44,7 @@
 - 本程序的python库依赖如下，已经包含在`requirements.txt`中，可以使用 `python -m pip install -r requirements.txt` 进行安装。
 
 ```
+aiohttp==3.8.4
 browser_cookie3==0.17.1
 fake_useragent==1.1.1
 gradio==3.24.1
