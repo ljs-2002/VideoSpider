@@ -13,15 +13,16 @@ if __name__ == '__main__':
     search_mod = False
     search_keywords = ''
     multi_process = False
+    use_proxy = False
     port = int(12345)
     
     # 读取命令行参数
     print('prase argv...',flush=True)
     if len(argv) > 0:
         try:
-            opts, args = getopt(argv,"t:c:o:d:s:p:emg",["task=","config=","output=","dir=","search=","multi_process","gui","port="])
+            opts, args = getopt(argv,"t:c:o:d:s:p:emg",["task=","config=","output=","dir=","search=","multi_process","gui","port=","proxy"])
         except GetoptError:
-            raise GetoptError('req.py -t/--task <task> -e -o/--output <output> -d/--dir <dir> -s/--search <web_id>:<keyword>_<web_id>:<keyword>... -m/--multi_process -g/--gui -p/--port <port>')
+            raise GetoptError('req.py -t/--task <task> -e -o/--output <output> -d/--dir <dir> -s/--search <web_id>:<keyword>_<web_id>:<keyword>... -m/--multi_process -g/--gui -p/--port <port> --proxy')
         for opt, arg in opts:
             if opt in ("-t", "--task"):
                 task_file = arg
@@ -40,8 +41,10 @@ if __name__ == '__main__':
                 gui_mod = True
             elif opt in ("-p","--port"):
                 port = int(arg)
+            elif opt == "--proxy":
+                use_proxy = True
     
     if(gui_mod):
         demo.launch(server_port=port,favicon_path="./assets/favicon.ico",inbrowser=True)
     else:
-        spider.run(task_file,output_file,output_dir,[],to_excel,gui_mod,search_mod,search_keywords,multi_process)
+        spider.run(task_file,output_file,output_dir,[],to_excel,gui_mod,search_mod,search_keywords,multi_process,use_proxy)
