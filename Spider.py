@@ -2,6 +2,9 @@ import requests
 import csv
 import re
 import asyncio
+import dill
+import pickle
+import platform
 from sys import _getframe
 from multiprocessing import Pool,freeze_support, Manager
 from shutil import rmtree
@@ -14,14 +17,18 @@ from copy import deepcopy
 from json import load,dump
 from lxml import etree
 from WebClass import WebDict
-from function import get_from_url,single_downloader,async_downloader,async_downloader_clip,get_random_proxy, multi_thread_downloader,multi_thread_downloader_clip
+from function import get_from_url,single_downloader,async_downloader,multi_thread_downloader,multi_thread_downloader_clip
+
+# 更换全局的序列化器
+pickle._dump = dill.dump
+pickle._load = dill.load
 
 task_order = ['tudou','haokan','v','ku6','ifeng','thepaper','cctv']
 
 def sort_order(d):
     return task_order.index(d['web_id'])
 
-
+END_OF_QUEUE = 'END'
 # 每个网站有四个属性，id, 基础url，params，解析的xpath, 以及对应的函数
 # 其中xpath 包含5个值：标题，简介，播放量,热力值,点赞数
 
@@ -79,7 +86,7 @@ class VideoSpider(object):
         path.exists(dir_path) and rmtree(dir_path)
         makedirs(dir_path)
         print('downloading ts file...')
-
+        
         if self.web_id != 'tudou':
             loop = asyncio.get_event_loop()
             task = [async_downloader(ts,dir_path+name_dict[ts]+'.ts','Downloading '+self.web_id+self.video_id+'_'+name_dict[ts],self.web_id,self.video_id) for ts in ts_list]
@@ -89,6 +96,7 @@ class VideoSpider(object):
             # for ts in ts_list:
             #     self.download(dir_path+name_dict[ts]+'.ts','Downloading '+self.web_id+self.video_id+'_'+name_dict[ts],ts,stream = True)
             file_name_list = []
+            
             for ts in ts_list:
                 file_name_list.append(dir_path+name_dict[ts]+'.ts')
             print('start multi thread download')
@@ -121,18 +129,16 @@ class VideoSpider(object):
             filename.strip()
             filename = re.sub(r'[\\:*?"<>| | ：，。：“’‘”]', '', filename)
             print('downloading MP4 file...')
-            proxies = get_random_proxy()
-            print(f'using proxies:{proxies}')
             head = requests.head(url)
             head = head.headers
             # 使用异步协程和多线程下载效率类似，但异步协程在Windows下会有报错，虽然不影响程序的运行，但是有碍观感
             if head['Accept-Ranges']=='bytes':
-                multi_thread_downloader_clip(url,self.web_id,self.video_id,filename)
+                multi_thread_downloader_clip(url,self.web_id,self.video_id,filename,self.use_proxy)
                 # loop = asyncio.get_event_loop()
                 # task=[async_downloader_clip(url,filename,self.web_id,self.video_id)]
                 # loop.run_until_complete(asyncio.wait(task))
             else:
-                single_downloader(filename, desc, url, Proxies=proxies)
+                single_downloader(filename, desc, url,use_proxy=self.use_proxy)
             print('done.')
 
     def parse_html_xpath(self, html,xpath):
@@ -329,7 +335,8 @@ class VideoSpider(object):
                  gui_mod:bool = False,
                  search_mod:bool = False,
                  search_keywords:str = '',
-                 multi_process:bool = False):
+                 multi_process:bool = False,
+                 use_proxy:bool = False):
         
         self.task_file = task_file
         self.output_file = output_file
@@ -340,6 +347,7 @@ class VideoSpider(object):
         self.multi_process = multi_process
         self.search_mod=search_mod
         self.search_keywords = search_keywords
+        self.use_proxy = use_proxy
         global fail_list
         fail_list.clear()
 
@@ -376,8 +384,11 @@ class VideoSpider(object):
         video_list.sort(key = sort_order)
         # 多进程
         if self.multi_process:
-            print("\033[32mfreeze_support...",flush=True)
-            freeze_support()
+            if platform.system() == 'Windows':
+                print("\033[32mfreeze_support...",flush=True)
+                freeze_support()
+            else:
+                print('\033[32m',flash = True)
             manager = Manager()
             print("create share Queue...",flush=True)
             self.task_Queue = manager.Queue(len(video_list))
@@ -390,16 +401,20 @@ class VideoSpider(object):
             print("insert queue...",flush=True)
             for task in video_list:
                 self.task_Queue.put(task)
-            
+            #self.task_Queue.put(END_OF_QUEUE)
             result_list = []
             
             print("start multi process...",flush=True)
 
-            p = Pool(4)
+            p = Pool(processes=4)
             time_start = time()
             for _ in range(4):
                 ret = p.apply_async(self.launch, args=())
                 result_list.append(ret)
+            # processes = [p.apipe(self.launch) for _ in range(4)]
+            
+            # for p in processes:
+            #     p.wait()
             
             p.close() # 关闭进程池
             p.join() # 阻塞主进程，等待子进程全部执行完毕
