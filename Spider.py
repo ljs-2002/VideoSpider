@@ -19,7 +19,7 @@ from lxml import etree
 from WebClass import WebDict
 from function import get_from_url,single_downloader,async_downloader,multi_thread_downloader,multi_thread_downloader_clip
 
-# 更换全局的序列化器
+# 更换全局的序列化器，若不更换则无法序列化函数，多进程时会报错
 pickle._dump = dill.dump
 pickle._load = dill.load
 
@@ -28,7 +28,6 @@ task_order = ['tudou','haokan','v','ku6','ifeng','thepaper','cctv']
 def sort_order(d):
     return task_order.index(d['web_id'])
 
-END_OF_QUEUE = 'END'
 # 每个网站有四个属性，id, 基础url，params，解析的xpath, 以及对应的函数
 # 其中xpath 包含5个值：标题，简介，播放量,热力值,点赞数
 
@@ -411,11 +410,7 @@ class VideoSpider(object):
             for _ in range(4):
                 ret = p.apply_async(self.launch, args=())
                 result_list.append(ret)
-            # processes = [p.apipe(self.launch) for _ in range(4)]
-            
-            # for p in processes:
-            #     p.wait()
-            
+
             p.close() # 关闭进程池
             p.join() # 阻塞主进程，等待子进程全部执行完毕
             for ret in result_list:
