@@ -13,7 +13,7 @@ from random import uniform
 from os import path,remove
 from sys import _getframe
 
-ProxyPool_url = 'http://101.42.41.111:5555/random' #获取随机IP代理的地址
+ProxyPool_url = '' #获取随机IP代理的地址
 # cookie_jar
 cookie_jar_all = browser_cookie3.load() 
 
