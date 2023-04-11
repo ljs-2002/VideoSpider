@@ -62,13 +62,20 @@ def load_config():
         config_dict = load(f)
     return config_dict,tudou_ckey
 
+def sort_order(d):
+    return int(d['start'])
 
-def get_from_url(url,web_id,video_id,func_name,params = None, stream = True, expect = None,Proxies=None):
+def get_from_url(url,web_id,video_id,func_name,params = None, stream = True, expect = None,use_proxy = False):
         
         cj = cookie_jar_all
         for _ in range(3):
             headers = {'User-Agent': ua_global.random}
-            res = requests.get(url=url, headers=headers, stream = stream, params=params,proxies=Proxies,cookies=cj)
+            if use_proxy:
+                proxies = get_random_proxy()
+                print(f'using proxies:{proxies}')
+            else:
+                proxies = None
+            res = requests.get(url=url, headers=headers, stream = stream, params=params,proxies=proxies,cookies=cj)
             if res.status_code == 200:
                 break
             else:
@@ -85,12 +92,12 @@ def get_from_url(url,web_id,video_id,func_name,params = None, stream = True, exp
         return res
 
 # 简单的单线程同步下载器
-def single_downloader(filename,desc,url, mode='wb',Proxies = None):
+def single_downloader(filename,desc,url, mode='wb',use_proxy = False):
     '''
         单线程下载器
     '''
     #增加返回code检查，如果返回code不是200，就不下载，直接返回
-    file = get_from_url(url,_getframe().f_code.co_name,expect = RuntimeError("download failed."),Proxies=Proxies)
+    file = get_from_url(url,_getframe().f_code.co_name,expect = RuntimeError("download failed."),use_proxy=use_proxy)
     if file is None:
         return True
     
@@ -108,7 +115,7 @@ def single_downloader(filename,desc,url, mode='wb',Proxies = None):
     return False
 
 # 协程下载器
-async def async_downloader(url,filename,desc,web_id,video_id,sem = asyncio.Semaphore(32)):
+async def async_downloader(url,filename,desc,web_id,video_id,sem = asyncio.Semaphore(8)):
     '''
         协程下载器
     '''
@@ -183,14 +190,19 @@ async def async_downloader_clip(url,filename,web_id,video_id,chunks_num = 4):
 
 
 #多线程下载器
-def _multi_thread_downloader(q: queue.Queue,web_id,video_id):
+def _multi_thread_downloader(q: queue.Queue,web_id,video_id,use_proxy = False):
     headers= {'User-Agent': ua_global.random}
     while not q.empty():
         url,filename = q.get()
         for i in range(3):
             try:
                 desc = f'Downloading {filename}'
-                r = requests.get(url,headers=headers,cookies=cookie_jar_all,stream=True)
+                if use_proxy:
+                    proxies = get_random_proxy()
+                    print(f'using proxies:{proxies}')
+                else:
+                    proxies = None
+                r = requests.get(url,headers=headers,cookies=cookie_jar_all,stream=True,proxies=proxies)
                 if r.status_code != 200:
                     print(f'\033[31m{web_id}: {video_id} download failed with {r.status_code}, aborting...\033[0m')
                     break
@@ -210,7 +222,7 @@ def _multi_thread_downloader(q: queue.Queue,web_id,video_id):
         
         q.task_done()
 
-def multi_thread_downloader(url_list:list,web_id:str,video_id:str,file_name_list:list):
+def multi_thread_downloader(url_list:list,web_id:str,video_id:str,file_name_list:list,use_proxy:bool=False):
     '''
         多线程下载器
     '''
@@ -218,7 +230,7 @@ def multi_thread_downloader(url_list:list,web_id:str,video_id:str,file_name_list
     for i in range(len(url_list)):
         q.put((url_list[i],file_name_list[i]))
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(_multi_thread_downloader, q,web_id,video_id) for _ in range(4)]
+        futures = [executor.submit(_multi_thread_downloader, q,web_id,video_id,use_proxy) for _ in range(4)]
         
         q.join()
 
@@ -226,11 +238,16 @@ def multi_thread_downloader(url_list:list,web_id:str,video_id:str,file_name_list
         for future in futures:
             future.cancel()
 
-def _multi_thread_downloader_clip(url,start, end,web_id,video_id):
+def _multi_thread_downloader_clip(url,start, end,web_id,video_id,use_proxy):
     headers = {'Range': 'bytes={}-{}'.format(start, end)}
     for _ in range(3):
         try:
-            r = requests.get(url,headers=headers,cookies=cookie_jar_all,stream =True)
+            if use_proxy:
+                proxies = get_random_proxy()
+                print(f'using proxies:{proxies}')
+            else:
+                proxies = None
+            r = requests.get(url,headers=headers,cookies=cookie_jar_all,stream =True,proxies=proxies)
             if r.status_code == 206:
                 desc = f'Downloading {web_id}:{video_id}: {start} - {end}'
                 length = int(r.headers['content-length'])
@@ -252,7 +269,7 @@ def _multi_thread_downloader_clip(url,start, end,web_id,video_id):
             
     return {'start':start,'content':b''}
 
-def multi_thread_downloader_clip(url,web_id:str,video_id:str,file_name,chunks_num = 4):
+def multi_thread_downloader_clip(url,web_id:str,video_id:str,file_name,use_proxy = False,chunks_num = 4):
     '''
         多线程分片下载器
     '''
@@ -265,12 +282,12 @@ def multi_thread_downloader_clip(url,web_id:str,video_id:str,file_name,chunks_nu
     ends[-1] = length - 1
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(_multi_thread_downloader_clip, url,starts[i],ends[i],web_id,video_id) for i in range(chunks_num)]
+        futures = [executor.submit(_multi_thread_downloader_clip, url,starts[i],ends[i],web_id,video_id,use_proxy) for i in range(chunks_num)]
 
     for future in concurrent.futures.as_completed(futures):
         results.append(future.result())
 
-    results = sorted(results,key=lambda x:x['start'])
+    results = sorted(results,key=sort_order)
     
     with open(file_name, 'wb') as f:
         for result in results:

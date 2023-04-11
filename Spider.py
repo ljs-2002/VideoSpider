@@ -2,11 +2,9 @@ import requests
 import csv
 import re
 import asyncio
-import dill
-import pickle
 import platform
 from sys import _getframe
-from multiprocessing import Pool,freeze_support, Manager
+from multiprocess import Pool, Manager, freeze_support
 from shutil import rmtree
 from pandas.io.excel import ExcelWriter
 from pandas import read_csv
@@ -18,10 +16,6 @@ from json import load,dump
 from lxml import etree
 from WebClass import WebDict
 from function import get_from_url,single_downloader,async_downloader,multi_thread_downloader,multi_thread_downloader_clip
-
-# 更换全局的序列化器，若不更换则无法序列化函数，多进程时会报错
-pickle._dump = dill.dump
-pickle._load = dill.load
 
 task_order = ['tudou','haokan','v','ku6','ifeng','thepaper','cctv']
 
@@ -197,7 +191,10 @@ class VideoSpider(object):
             raise e('prase video info failed')
         video_title = item['title']
         print('get video info down')
-        self.get_file(html,video_title)
+        try:
+            self.get_file(html,video_title)
+        except Exception as e:
+            print("get video file failed with error: ",e)
         self.save_html_xpath(item)
 
     def save_html_xpath(self, item_dict):
@@ -290,7 +287,7 @@ class VideoSpider(object):
             self.url, self.xpath = Web.get_ux()
             self.file_url_func, self.ts_url_func = Web.default_get_file, Web.default_get_ts
             self.like_url_func, self.view_url_func = Web.default_get_like, Web.default_get_view
-
+            sleep_time = 0.5
             params = Web.get_params(id=video['video_id'])
             for retry_time in range(3):
                 try:
@@ -299,8 +296,9 @@ class VideoSpider(object):
                 except Exception as e:
                     print("\033[36m{0}:{1}:错误：{2}\033[0m".format(video['web_id'], video['video_id'],e))
                     if(retry_time < 2):
-                        print("\033[34m{0}:{1}:重试中...\033[0m".format(video['web_id'], video['video_id']))
-                        sleep(uniform(0.5,2))
+                        print("\033[34m{0}:{1}: {2}s后重试...\033[0m".format(video['web_id'], video['video_id'],sleep_time))
+                        sleep(sleep_time)
+                        sleep_time *=2
                     else:
                         print("\033[44m{0}:{1}:重试次数超过限制，跳过\033[0m".format(video['web_id'], video['video_id']))
                         #加入失败列表
@@ -387,7 +385,7 @@ class VideoSpider(object):
                 print("\033[32mfreeze_support...",flush=True)
                 freeze_support()
             else:
-                print('\033[32m',flash = True)
+                print('\033[32m',flush = True)
             manager = Manager()
             print("create share Queue...",flush=True)
             self.task_Queue = manager.Queue(len(video_list))
@@ -400,7 +398,7 @@ class VideoSpider(object):
             print("insert queue...",flush=True)
             for task in video_list:
                 self.task_Queue.put(task)
-            #self.task_Queue.put(END_OF_QUEUE)
+
             result_list = []
             
             print("start multi process...",flush=True)

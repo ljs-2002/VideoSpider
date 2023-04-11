@@ -294,9 +294,10 @@ def get_file_tudou_url(**kwarg):
     resq = requests.get(url=url,headers=headers,cookies=cookie_jar,params=params)
     resq_json = resq.json()
     m3u8_url_list = resq_json['data']['stream']
-    for m3u8_url in m3u8_url_list:
-        if m3u8_url['stream_type'] == '3gphd' or m3u8_url['stream_type'] == '3gpsd':
-            m3u8_url = m3u8_url['m3u8_url']
+    m3u8_url = m3u8_url_list[0]['m3u8_url']
+    for url in m3u8_url_list:
+        if url['stream_type'] == '3gphd' or url['stream_type'] == '3gpsd':
+            m3u8_url = url['m3u8_url']
             break
     return m3u8_url
 

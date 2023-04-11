@@ -12,6 +12,7 @@ choice = ['v','haokan','ku6','ifeng','thepaper','tudou','cctv']
 output_file_name = "output.csv"
 save_as_excel_state = True
 multi_process_state = True
+use_proxy_state = False
 total_task_size = 0
 
 spider = VideoSpider()
@@ -51,6 +52,10 @@ def change_save_as_excel(state:bool):
 def change_multi_process(state:bool):
     global multi_process_state
     multi_process_state = state
+
+def change_use_proxy(state:bool):
+    global use_proxy_state
+    use_proxy_state = state
 
 def set_file_name(filename:str):
     global output_file_name
@@ -112,7 +117,8 @@ def start():
                 output_file=output_file_name,
                 to_excel=save_as_excel_state,
                 gui_mod=True,
-                multi_process=multi_process_state)
+                multi_process=multi_process_state,
+                use_proxy=use_proxy_state)
         task_list.clear()
         task_list.append("")
         task_chatbot.clear()
@@ -160,6 +166,7 @@ with gr.Blocks(theme='gstaff/sketch') as demo:
                 gr.Markdown("The default output path is the output folder under the current path, and the excel file will be saved as **output.xlsx**")
                 save_as_excel = gr.Checkbox(label="Save as excel?",value=True,interactive=True).style(container=True)
                 multi_process = gr.Checkbox(label="Multi-process?",value=True,interactive=True).style(container=True)
+                use_proxy = gr.Checkbox(label="Use proxy?",value=False,interactive=True).style(container=True)
                 
                 total_task=gr.Markdown(value = "**total task: "+str(total_task_size)+"**")
                 deleteDropdown = gr.Dropdown(choices=task_list, label="Choose to delete", type="index",value = task_list[-1])
@@ -180,6 +187,7 @@ with gr.Blocks(theme='gstaff/sketch') as demo:
     
     save_as_excel.change(change_save_as_excel,[save_as_excel])
     multi_process.change(change_multi_process,[multi_process])
+    use_proxy.change(change_use_proxy,[use_proxy])
 
     button_set_filename.click(set_file_name,[save_file_name],[save_file_name])
     button_load_task.click(load_video_list,[task_file],[task_file,deleteDropdown,outputBot])
