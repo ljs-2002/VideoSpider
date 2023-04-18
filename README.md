@@ -98,7 +98,7 @@ tqdm==4.65.0
 - 使用下列命令运行本程序：
 
   ```shell
-  python main.py -t/--task <task> -e -o/--output <output> -d/--dir <dir> -s/--search <web_id>:<keyword>|<web_id>:<keyword>... -m/--multi_process --proxy
+  python main.py -t/--task <task> -e -o/--output <output> -d/--dir <dir> -s/--search <web_id>:<keyword>_<web_id>:<keyword>... -m/--multi_process --proxy
   ```
 
 - 程序会将爬取到的视频标题等信息存放在`video.csv`文件中，将爬取到的视频文件存放在`./file`中。其中，以HLS协议传输的视频文件将存放在`./file/hls`下，其它视频文件将存放在`./file/mp4`文件夹下。视频文件将以`web_id+video_id+video_title`的形式命名。
